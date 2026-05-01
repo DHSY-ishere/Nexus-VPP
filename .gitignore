@@ -1,0 +1,32 @@
+# General
+.env
+.DS_Store
+*.log
+
+# Go (Backend)
+/backend/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Node.js (Frontend)
+node_modules/
+.next/
+out/
+build/
+.npm/
+
+# Python (ML)
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+
+# Databases & Infra
+/infra/data/
