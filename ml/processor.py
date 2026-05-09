@@ -4,11 +4,11 @@ from datetime import datetime
 from confluent_kafka import Consumer, Producer
 
 conf_consumer = {
-    "bootstrap.servers": "localhost:9092",
+    "bootstrap.servers": "127.0.0.1:9092",
     "group.id": "ml-logic",
     "auto.offset.reset": "latest",
 }
-conf_producer = {"bootstrap.servers": "localhost:9092"}
+conf_producer = {"bootstrap.servers": "127.0.0.1:9092"}
 
 consumer = Consumer(conf_consumer)
 producer = Producer(conf_producer)

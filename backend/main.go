@@ -68,7 +68,7 @@ func main() {
 	go hub.run()
 
 	// Kafka workers
-	brokers := []string{"localhost:9092"}
+	brokers := []string{"127.0.0.1:9092"}
 	ingestion.StartWorkerPool(50, brokers, "nexus.telemetry.raw")
 
 	// Ingestion + broadcast loop
@@ -94,7 +94,7 @@ func main() {
 
 	go func() {
 		reader := kafka.NewReader(kafka.ReaderConfig{
-			Brokers: []string{"localhost:9092"},
+			Brokers: []string{"127.0.0.1:9092"},
 			Topic:   "nexus.commands",
 			GroupID: "go-orchestrator-settlement",
 		})

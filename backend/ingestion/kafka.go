@@ -19,7 +19,7 @@ func StartWorkerPool(numWorkers int, brokers []string, topic string) {
 		Topic:    topic,
 		Balancer: &kafka.LeastBytes{},
 		// Async mode for massive throughput
-		Async: true, 
+		Async: true,
 	}
 
 	for i := 0; i < numWorkers; i++ {
@@ -33,12 +33,12 @@ func StartWorkerPool(numWorkers int, brokers []string, topic string) {
 				}
 
 				// 2. Write to Kafka. We use NodeID as the Key.
-				// *Production Best Practice*: Using the NodeID as the key ensures all events 
-				// from a specific node always go to the exact same Kafka partition. 
+				// *Production Best Practice*: Using the NodeID as the key ensures all events
+				// from a specific node always go to the exact same Kafka partition.
 				// This guarantees strict chronological order for that node's data.
 				err = writer.WriteMessages(context.Background(),
 					kafka.Message{
-						Key:   []byte(event.NodeID), 
+						Key:   []byte(event.NodeID),
 						Value: payload,
 					},
 				)
