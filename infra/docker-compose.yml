@@ -23,7 +23,7 @@ services:
     image: postgres:15-alpine
     container_name: nexus-db
     ports:
-      - "5432:5432"
+      - "5433:5432"
     environment:
       POSTGRES_USER: nexus_admin
       POSTGRES_PASSWORD: supersecretpassword

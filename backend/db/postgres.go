@@ -12,7 +12,7 @@ import (
 var DB *gorm.DB
 
 func InitDB() {
-	dsn := "host=localhost user=nexus_admin password=supersecretpassword dbname=nexus_ledger port=5432 sslmode=disable TimeZone=UTC"
+	dsn := "host=127.0.0.1 user=nexus_admin password=supersecretpassword dbname=nexus_ledger port=5433 sslmode=disable TimeZone=UTC"
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {
@@ -20,6 +20,6 @@ func InitDB() {
 	}
 
 	// Auto-migrate the schema.
-	DB.AutoMigrate(&models.P2PTrade{})
+	DB.AutoMigrate(&models.P2PTrade{}, &models.MarketTrade{}, &models.IntervalRoot{})
 	fmt.Println("PostgreSQL Ledger initialized.")
 }

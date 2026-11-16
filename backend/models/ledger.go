@@ -1,6 +1,9 @@
 package models
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"time"
 
 	"gorm.io/gorm"
@@ -15,4 +18,36 @@ type P2PTrade struct {
 	CreditEarned     float64
 	GridFrequency    float64 // The frequency at the time of the trade (proves strain)
 	SettledAt        time.Time
+	BlockIndex       uint
+	PreviousHash     string
+	BlockHash        string
+	Nonce            int
+}
+
+func ComputeBlockHash(trade P2PTrade) string {
+	data := fmt.Sprintf("%s%s%f%f%f%s%s%d",
+		trade.TradeID,
+		trade.ContributorID,
+		trade.EnergyProvidedKw,
+		trade.CreditEarned,
+		trade.GridFrequency,
+		trade.PreviousHash,
+		trade.SettledAt.Format(time.RFC3339Nano),
+		trade.Nonce,
+	)
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
+}
+
+func MineBlock(trade *P2PTrade, previousHash string) {
+	trade.PreviousHash = previousHash
+	trade.Nonce = 0
+	for {
+		hash := ComputeBlockHash(*trade)
+		if hash[:2] == "00" {
+			trade.BlockHash = hash
+			break
+		}
+		trade.Nonce++
+	}
 }

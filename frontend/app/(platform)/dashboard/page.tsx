@@ -12,6 +12,7 @@ import {
   YAxis,
 } from "recharts";
 import Globe from "./components/Globe";
+import PageHeader from "../components/PageHeader";
 
 type TelemetryPoint = {
   time: string;
@@ -31,7 +32,9 @@ export default function DashboardPage() {
     const socket = new WebSocket("ws://localhost:8080/ws");
 
     socket.onopen = () => {
-      setAlgoState("> Stream connected.\n> Analyzing strain...\n> Threshold locked at 0.84.");
+      setAlgoState(
+        "> Stream connected.\n> Analyzing strain...\n> Threshold locked at 0.84.",
+      );
     };
 
     socket.onmessage = (event) => {
@@ -45,7 +48,10 @@ export default function DashboardPage() {
 
       const now = new Date();
       const point: TelemetryPoint = {
-        time: now.toLocaleTimeString("en-US", { minute: "2-digit", second: "2-digit" }),
+        time: now.toLocaleTimeString("en-US", {
+          minute: "2-digit",
+          second: "2-digit",
+        }),
         consumption: Number((data.current_consumption_kw ?? 0).toFixed(2)),
         replenishment: Number((data.replenishment_rate_kw ?? 0).toFixed(2)),
         frequency: Number(data.local_frequency_hz.toFixed(3)),
@@ -61,11 +67,15 @@ export default function DashboardPage() {
     };
 
     socket.onerror = () => {
-      setAlgoState("> Stream error detected...\n> Retrying websocket tunnel...\n> Threshold locked at 0.84.");
+      setAlgoState(
+        "> Stream error detected...\n> Retrying websocket tunnel...\n> Threshold locked at 0.84.",
+      );
     };
 
     socket.onclose = () => {
-      setAlgoState("> Stream disconnected.\n> Awaiting backend restore...\n> Threshold locked at 0.84.");
+      setAlgoState(
+        "> Stream disconnected.\n> Awaiting backend restore...\n> Threshold locked at 0.84.",
+      );
     };
 
     return () => socket.close();
@@ -74,85 +84,138 @@ export default function DashboardPage() {
   const isStrained = gridFrequency < 49.9;
 
   return (
-    <div className="text-zinc-300">
-      <header className="border-b border-zinc-900 pb-4 flex items-end justify-between">
-        <div>
-          <h1 className="text-xl font-sans font-bold text-white tracking-tight">GRID OBSERVABILITY</h1>
+    <div>
+      <PageHeader
+        eyebrow="Live telemetry"
+        title="Grid"
+        accent="observability"
+        description="Every node's consumption and solar replenishment, streamed live from the orchestrator."
+      >
+        <div className="glass flex items-center gap-6 px-7 py-5">
+          <div>
+            <p className="label">Grid frequency</p>
+            <p
+              className={`stat-num mt-3 text-4xl ${isStrained ? "text-amber-300 animate-pulse" : "text-emerald-300"}`}
+            >
+              {gridFrequency.toFixed(3)}
+              <span className="ml-2 text-base font-normal text-white/40">Hz</span>
+            </p>
+          </div>
+          <span className={`pill pill-tint ${isStrained ? "[--tint:var(--amber)]" : ""}`}>
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {isStrained ? "Discharging" : "Nominal"}
+          </span>
         </div>
-        <div className="text-right">
-          <p className="text-[10px] text-zinc-500 tracking-widest">LIVE GRID FREQUENCY</p>
-          <p className={`text-4xl font-sans font-black ${isStrained ? "text-orange-500 animate-pulse" : "text-emerald-400 neon-glow"}`}>
-            {gridFrequency.toFixed(3)}
-          </p>
-        </div>
-      </header>
+      </PageHeader>
 
       <motion.div
-        className="mt-8 space-y-6"
+        className="mt-12 space-y-8"
         initial="hidden"
         animate="show"
-        variants={{ hidden: {}, show: { transition: { staggerChildren: 0.2 } } }}
+        variants={{
+          hidden: {},
+          show: { transition: { staggerChildren: 0.12 } },
+        }}
       >
-        <motion.div
-          className="bg-[#0a0a0a] border border-zinc-900 rounded-sm p-5"
-          initial={{ opacity: 0, y: 30 }}
+        <motion.section
+          className="glass p-7 md:p-8"
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs text-zinc-500 tracking-widest">TELEMETRY AGGREGATION</p>
-            <span className={`text-[10px] px-2 py-1 rounded-sm ${isStrained ? "text-orange-500 bg-orange-500/10" : "text-emerald-500 bg-emerald-500/10"}`}>
-              {isStrained ? "DISCHARGE" : "NOMINAL"}
-            </span>
+          <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
+            <div>
+              <p className="label">Telemetry aggregation</p>
+              <p className="mt-2 text-sm text-white/55">Consumption against solar replenishment, last 30 samples</p>
+            </div>
+            <div className="flex gap-5 text-sm text-white/65">
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-sky-400" />
+                Consumption
+              </span>
+              <span className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
+                Replenishment
+              </span>
+            </div>
           </div>
-          <div className="w-full h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={telemetry}>
+          <div className="glass-inset p-4" style={{ height: 380 }}>
+            <ResponsiveContainer width="100%" height={348}>
+              <AreaChart data={telemetry} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="dashGreen" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.02} />
+                    <stop offset="5%" stopColor="#34d399" stopOpacity={0.45} />
+                    <stop offset="95%" stopColor="#34d399" stopOpacity={0.02} />
+                  </linearGradient>
+                  <linearGradient id="dashSky" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#60a5fa" stopOpacity={0.28} />
+                    <stop offset="95%" stopColor="#60a5fa" stopOpacity={0.02} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid stroke="#333" strokeDasharray="2 4" />
+                <CartesianGrid stroke="rgba(255,255,255,0.06)" strokeDasharray="2 6" />
                 <XAxis dataKey="time" hide />
                 <YAxis hide />
-                <Tooltip contentStyle={{ backgroundColor: "#050505", border: "1px solid #18181b", color: "#d4d4d8" }} />
-                <Area type="stepAfter" dataKey="consumption" stroke="#3f3f46" fill="#3f3f46" fillOpacity={0.15} isAnimationActive={false} />
-                <Area type="stepAfter" dataKey="replenishment" stroke="#10b981" fill="url(#dashGreen)" isAnimationActive={false} />
+                <Tooltip />
+                <Area
+                  type="monotone"
+                  dataKey="consumption"
+                  stroke="#60a5fa"
+                  strokeWidth={2}
+                  fill="url(#dashSky)"
+                  isAnimationActive={false}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="replenishment"
+                  stroke="#34d399"
+                  strokeWidth={2}
+                  fill="url(#dashGreen)"
+                  isAnimationActive={false}
+                />
               </AreaChart>
             </ResponsiveContainer>
           </div>
-        </motion.div>
+        </motion.section>
 
         <motion.div
-          className="grid grid-cols-1 lg:grid-cols-3 gap-6"
-          initial={{ opacity: 0, y: 30 }}
+          className="grid grid-cols-1 gap-8 lg:grid-cols-3"
+          initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
         >
-          <div className="bg-[#0a0a0a] border border-zinc-900 rounded-sm p-5 lg:col-span-2">
-            <p className="text-xs text-zinc-500 tracking-widest mb-2">NODE MESH STATUS</p>
-            <p className="text-2xl font-sans font-bold text-white mb-4">ACTIVE NODES: 10,492</p>
-            <div className="w-full h-[500px] bg-[#050505] rounded-sm border border-zinc-900 relative overflow-hidden">
-              <div className="absolute top-4 left-4 z-10 bg-black/50 backdrop-blur border border-zinc-800 text-sm px-4 py-2 text-white rounded-sm">
-                Search Region or Node ID...
+          <section className="glass p-7 md:p-8 lg:col-span-2">
+            <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="label">Node mesh status</p>
+                <p className="stat-num mt-4 text-3xl text-white">
+                  10,492 <span className="text-base font-normal text-white/45">active nodes</span>
+                </p>
               </div>
+              <span className="pill">Search region or node ID</span>
+            </div>
+            <div className="glass-inset relative h-[480px] overflow-hidden rounded-3xl">
               <Globe />
             </div>
-          </div>
+          </section>
 
-          <div className="bg-[#0a0a0a] border border-zinc-900 rounded-sm p-5 flex flex-col justify-center">
-            <p className="text-xs text-zinc-500 tracking-widest mb-2">REPLENISHMENT EFFICIENCY</p>
-            <p className="text-6xl font-sans font-black text-white">84%</p>
-            <p className="text-emerald-500 mt-2">SOLAR_INDEX_NOMINAL</p>
-          </div>
+          <div className="flex flex-col gap-8">
+            <section className="glass flex flex-1 flex-col justify-center p-7 md:p-8">
+              <p className="label">Replenishment efficiency</p>
+              <p className="stat-num mt-6 text-7xl text-white">
+                84<span className="text-4xl text-white/40">%</span>
+              </p>
+              <p className="mt-5 inline-flex items-center gap-2 text-sm text-emerald-300">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                Solar index nominal
+              </p>
+            </section>
 
-          <div className="bg-[#0a0a0a] border border-zinc-900 rounded-sm p-5">
-            <p className="text-xs text-zinc-500 tracking-widest mb-3">ML ALGORITHM STATE</p>
-            <pre className="text-emerald-500 text-xs leading-6 whitespace-pre-wrap">
-              {algoState}
-            </pre>
+            <section className="glass p-7 md:p-8">
+              <p className="label mb-6">ML algorithm state</p>
+              <pre className="glass-inset whitespace-pre-wrap p-5 font-mono text-[0.8rem] leading-7 text-emerald-300/90">
+                {algoState}
+              </pre>
+            </section>
           </div>
         </motion.div>
       </motion.div>
