@@ -16,6 +16,9 @@ import (
 	"time"
 
 	"github.com/DHSY-ishere/Nexus-VPP/backend/engine"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/ingestion"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/integrations"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/ledgerapi"
 	"github.com/gorilla/websocket"
 )
 
@@ -86,6 +89,9 @@ func main() {
 				case "MARKET_TAMPER":
 					v, _ := msg["value"].(bool)
 					eng.SetTamper(v)
+				case "MARKET_METERLIE":
+					v, _ := msg["value"].(bool)
+					eng.SetMeterLie(v)
 				case "CLEAR_FAULT":
 					eng.ClearFaults()
 				}
@@ -119,6 +125,12 @@ func main() {
 		}
 		writeJSON(w, http.StatusOK, p)
 	})
+
+	ledgerapi.Register(eng)
+	services, sinks := integrations.Start(context.Background(), integrations.FromEnv(), eng, http.DefaultServeMux)
+	defer services.Close()
+	// No Kafka here: telemetry that arrives over MQTT goes straight to Redis and TimescaleDB.
+	ingestion.StartWorkers(8, sinks...)
 
 	port := os.Getenv("PORT")
 	if port == "" {

@@ -24,6 +24,8 @@ type Trade = {
   status: string;
   stability_credit: number;
   levy: number;
+  fill: number;
+  charged: number;
 };
 
 type Zone = {
@@ -43,6 +45,12 @@ type Zone = {
   buses: number;
   sens_err_pct: number;
   model_cleared_kwh: number;
+  conserved: boolean;
+  excess_kwh: number;
+  tolerance_kwh: number;
+  loss_kwh: number;
+  claimed_usd: number;
+  confirmed_usd: number;
 };
 
 type Interval = {
@@ -59,6 +67,42 @@ type Interval = {
   pool_balance: number;
   community_savings: number;
   gini: number;
+  chain_on: boolean;
+  block_height: number;
+  block_hash: string;
+  block_sigs: number;
+  quorum: number;
+  validators: number;
+  proposer: string;
+  chain_err: string;
+};
+
+type Audit = {
+  valid: boolean;
+  blocks: number;
+  height: number;
+  quorum: number;
+  validators: number;
+  audit_ms: number;
+  error?: string;
+};
+
+type Receipt = {
+  verdict: string;
+  outcome: { fill: number; status: string; charge: number; escrow: number };
+  buyer: { baseline_kwh: number; reading_kwh: number; party: { traded_kwh: number; measured_kwh: number } };
+  seller: { baseline_kwh: number; reading_kwh: number; party: { traded_kwh: number; measured_kwh: number } };
+  zone: {
+    zone: string;
+    conserved: boolean;
+    homes_net_kwh: number;
+    loss_kwh: number;
+    head_meter_kwh: number;
+    excess_kwh: number;
+    tolerance_kwh: number;
+    note: string;
+  };
+  block: { height: number; hash: string; signatures: number; quorum: number; proposer: string };
 };
 
 type Proof = {
@@ -92,6 +136,8 @@ export default function MarketPage() {
   const [proof, setProof] = useState<Proof | null>(null);
   const [proofError, setProofError] = useState<string | null>(null);
   const [totalGated, setTotalGated] = useState(0);
+  const [audit, setAudit] = useState<Audit | null>(null);
+  const [receipt, setReceipt] = useState<Receipt | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -122,7 +168,12 @@ export default function MarketPage() {
   const checkProof = async (tradeId: string) => {
     setProofError(null);
     setProof(null);
+    setReceipt(null);
     try {
+      fetch(`${API}/ledger/delivery?trade_id=${encodeURIComponent(tradeId)}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((r) => r && setReceipt(r as Receipt))
+        .catch(() => undefined);
       const res = await fetch(`${API}/market/proof?trade_id=${encodeURIComponent(tradeId)}`);
       if (!res.ok) {
         setProofError("Proof no longer retained (the server keeps the last two hours).");
@@ -131,6 +182,16 @@ export default function MarketPage() {
       setProof((await res.json()) as Proof);
     } catch {
       setProofError("Could not reach the market server.");
+    }
+  };
+
+  const runAudit = async () => {
+    setAudit(null);
+    try {
+      const res = await fetch(`${API}/ledger/verify`);
+      if (res.ok) setAudit((await res.json()) as Audit);
+    } catch {
+      setAudit({ valid: false, blocks: 0, height: 0, quorum: 0, validators: 0, audit_ms: 0, error: "Could not reach the server." });
     }
   };
 
@@ -193,6 +254,9 @@ export default function MarketPage() {
           </button>
           <button type="button" onClick={() => send({ type: "MARKET_TAMPER", value: true })} className="btn btn-amber">
             Make a seller under-deliver
+          </button>
+          <button type="button" onClick={() => send({ type: "MARKET_METERLIE", value: true })} className="btn btn-rose">
+            Seller&apos;s meter lies about delivery
           </button>
           <button type="button" onClick={() => send({ type: "CLEAR_FAULT" })} className="btn btn-volt">
             Reset all
@@ -322,6 +386,11 @@ export default function MarketPage() {
                     <span className="text-white/45">
                       {z.buses_learned}/{z.buses} homes probed
                     </span>
+                    <span className={`w-full ${z.conserved ? "text-emerald-300/80" : "text-rose-300"}`}>
+                      {z.conserved
+                        ? `Meters match the feeder-head meter (off ${z.excess_kwh.toFixed(3)} kWh, allowed ±${z.tolerance_kwh.toFixed(3)})`
+                        : `Meters do NOT match the head meter: ${z.excess_kwh.toFixed(3)} kWh unconfirmed. Only $${z.confirmed_usd.toFixed(3)} of $${z.claimed_usd.toFixed(3)} released.`}
+                    </span>
                     <span className="w-full text-white/40">
                       {z.model_cleared_kwh > 0.001
                         ? `${((z.cleared_kwh / z.model_cleared_kwh) * 100).toFixed(0)}% of perfect-model volume · ${z.sens_err_pct.toFixed(1)}% error`
@@ -333,6 +402,57 @@ export default function MarketPage() {
             })}
           </ul>
         </div>
+      </section>
+
+      <section className="glass mt-8 p-7 md:p-8" aria-label="Settlement blockchain">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <p className="label">Settlement blockchain</p>
+            <p className="mt-3 max-w-3xl text-sm leading-relaxed text-white/50">
+              Power can&apos;t be routed to one buyer, so delivery is checked for the whole feeder: every home&apos;s signed
+              meter plus an independent feeder-head meter must add up. Each interval is one block. Every validator
+              re-runs the settlement rules itself and signs only if its answer is identical; a block needs{" "}
+              {latest?.quorum ?? 3} of {latest?.validators ?? 4} signatures.
+            </p>
+          </div>
+          <button type="button" onClick={runAudit} className="btn">
+            Audit the whole chain
+          </button>
+        </div>
+        <dl className="mt-8 grid grid-cols-2 gap-6 text-sm sm:grid-cols-4">
+          <div>
+            <dt className="label">Block height</dt>
+            <dd className="stat-num mt-2 text-2xl text-white">{latest?.chain_on ? latest.block_height : "–"}</dd>
+          </div>
+          <div>
+            <dt className="label">Signatures</dt>
+            <dd className="stat-num mt-2 text-2xl text-white">
+              {latest?.chain_on ? `${latest.block_sigs} / ${latest.validators}` : "–"}
+            </dd>
+          </div>
+          <div>
+            <dt className="label">Proposer</dt>
+            <dd className="stat-num mt-2 text-2xl text-white">{latest?.proposer || "–"}</dd>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <dt className="label">Block hash</dt>
+            <dd className="mt-2 break-all font-mono text-xs text-white/55">
+              {latest?.block_hash ? `${latest.block_hash.slice(0, 32)}…` : "–"}
+            </dd>
+          </div>
+        </dl>
+        {latest?.chain_err && (
+          <p className="mt-6 text-sm text-rose-300" role="alert">
+            Consensus failed, nothing settled this interval: {latest.chain_err}
+          </p>
+        )}
+        {audit && (
+          <p className={`mt-6 text-sm ${audit.valid ? "text-emerald-300" : "text-rose-300"}`} role="status">
+            {audit.valid
+              ? `Audit passed: ${audit.blocks} blocks re-executed and verified in ${audit.audit_ms.toFixed(0)} ms (hash links, ${audit.quorum}-of-${audit.validators} signatures, settlement outcomes).`
+              : `Audit FAILED: ${audit.error}`}
+          </p>
+        )}
       </section>
 
       <section className="glass mt-8 p-7 md:p-8">
@@ -373,8 +493,13 @@ export default function MarketPage() {
                   <td className="font-mono">{t.energy_kwh.toFixed(3)}</td>
                   <td className="font-mono">{t.price.toFixed(3)}</td>
                   <td className={GATE_STYLE[t.gate_result] ?? ""}>{t.gate_result.toLowerCase()}</td>
-                  <td className={t.status === "DISPUTED" ? "text-rose-300" : "text-white/80"}>
+                  <td
+                    className={
+                      t.status === "DISPUTED" ? "text-rose-300" : t.status === "PARTIAL" ? "text-amber-300" : "text-white/80"
+                    }
+                  >
                     {t.status.toLowerCase()}
+                    {t.status !== "SETTLED" && <span className="ml-1 text-white/40">({(t.fill * 100).toFixed(0)}%)</span>}
                   </td>
                   <td className="font-mono">{t.stability_credit > 0 ? `$${t.stability_credit.toFixed(3)}` : "–"}</td>
                   <td>
@@ -391,6 +516,42 @@ export default function MarketPage() {
             </tbody>
           </table>
         </div>
+
+        {receipt && (
+          <div className="glass-inset mt-6 p-5" role="status" aria-label="Proof of receipt">
+            <p className={`text-sm font-medium ${receipt.outcome.status === "SETTLED" ? "text-emerald-300" : "text-amber-300"}`}>
+              {receipt.verdict}
+            </p>
+            <dl className="mt-4 grid grid-cols-1 gap-x-8 gap-y-2 text-xs text-white/55 sm:grid-cols-2">
+              <dt>Buyer drew above baseline</dt>
+              <dd className="font-mono text-white/80 sm:text-right">
+                {receipt.buyer.party.measured_kwh.toFixed(3)} of {receipt.buyer.party.traded_kwh.toFixed(3)} kWh (signed meter)
+              </dd>
+              <dt>Seller injected above baseline</dt>
+              <dd className="font-mono text-white/80 sm:text-right">
+                {receipt.seller.party.measured_kwh.toFixed(3)} of {receipt.seller.party.traded_kwh.toFixed(3)} kWh (signed meter)
+              </dd>
+              <dt>All {receipt.zone.zone} home meters (net, minus cable losses)</dt>
+              <dd className="font-mono text-white/80 sm:text-right">
+                {(receipt.zone.homes_net_kwh - receipt.zone.loss_kwh).toFixed(3)} kWh
+              </dd>
+              <dt>Independent feeder-head meter</dt>
+              <dd className="font-mono text-white/80 sm:text-right">{receipt.zone.head_meter_kwh.toFixed(3)} kWh</dd>
+              <dt>Difference (allowed ±{receipt.zone.tolerance_kwh.toFixed(3)})</dt>
+              <dd className={`font-mono sm:text-right ${receipt.zone.conserved ? "text-emerald-300" : "text-rose-300"}`}>
+                {receipt.zone.excess_kwh.toFixed(3)} kWh
+              </dd>
+              <dt>Charged to buyer</dt>
+              <dd className="font-mono text-white/80 sm:text-right">
+                ${receipt.outcome.charge.toFixed(4)} of ${receipt.outcome.escrow.toFixed(4)}
+              </dd>
+            </dl>
+            <p className="mt-4 break-all font-mono text-xs text-white/40">
+              block {receipt.block.height} · {receipt.block.signatures}/{receipt.block.quorum}+ validator signatures · proposer{" "}
+              {receipt.block.proposer} · {receipt.block.hash.slice(0, 32)}…
+            </p>
+          </div>
+        )}
 
         {(proof || proofError) && (
           <div className="glass-inset mt-6 p-5" role="status">

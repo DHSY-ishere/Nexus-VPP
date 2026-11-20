@@ -3,6 +3,7 @@ package db
 import (
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/DHSY-ishere/Nexus-VPP/backend/models"
 	"gorm.io/driver/postgres"
@@ -13,6 +14,9 @@ var DB *gorm.DB
 
 func InitDB() {
 	dsn := "host=127.0.0.1 user=nexus_admin password=supersecretpassword dbname=nexus_ledger port=5433 sslmode=disable TimeZone=UTC"
+	if v := os.Getenv("LEDGER_DSN"); v != "" { // for example a scratch database; the default is unchanged
+		dsn = v
+	}
 	var err error
 	DB, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	if err != nil {

@@ -85,6 +85,8 @@ type Trade struct {
 	StabilityCredit float64 `json:"stability_credit"`
 	Levy            float64 `json:"levy"`
 	Status          string  `json:"status"`
+	Fill            float64 `json:"fill"`    // fraction of the buyer's payment the pool-delivery check confirmed
+	Charged         float64 `json:"charged"` // dollars actually charged to the buyer after the check
 	LeafHash        string  `json:"leaf_hash"`
 }
 

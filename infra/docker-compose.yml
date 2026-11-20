@@ -18,6 +18,7 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: 'PLAINTEXT'
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+      KAFKA_HEAP_OPTS: '-Xmx512m -Xms256m'  # keep the JVM small on a laptop
 
   postgres:
     image: postgres:15-alpine
@@ -30,3 +31,32 @@ services:
       POSTGRES_DB: nexus_ledger
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+  # Live fleet state (Go orchestrator, backend/fleetstate). Single node here; the code also
+  # supports a Redis Cluster through a go-redis UniversalClient and {fleet} hash tags.
+  redis:
+    image: redis:7-alpine
+    container_name: nexus-redis
+    ports:
+      - "6379:6379"
+
+  # Telemetry history (backend/telemetrystore): a TimescaleDB hypertable.
+  timescale:
+    image: timescale/timescaledb:latest-pg15
+    container_name: nexus-timescale
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: nexus_admin
+      POSTGRES_PASSWORD: supersecretpassword
+      POSTGRES_DB: nexus_telemetry
+    volumes:
+      - ./data/timescale:/var/lib/postgresql/data
+
+  # Edge telemetry over MQTT (backend/mqttbridge). Anonymous access: local development only.
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: nexus-mqtt
+    ports:
+      - "1883:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro

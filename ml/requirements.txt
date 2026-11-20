@@ -1,0 +1,13 @@
+numpy
+scikit-learn
+joblib
+fastapi
+uvicorn
+pydantic
+grpcio
+grpcio-tools
+confluent-kafka
+paho-mqtt
+redis
+pytest
+httpx

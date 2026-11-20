@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+package nexus.forecast.v1;
+
+option go_package = "github.com/DHSY-ishere/Nexus-VPP/backend/forecastpb";
+
+// Forecaster serves the trained 15-minute-ahead solar forecast (ml/forecast.py).
+service Forecaster {
+  rpc Forecast(ForecastRequest) returns (ForecastResponse);
+  rpc Health(HealthRequest) returns (HealthResponse);
+}
+
+message ForecastRequest {
+  string node_id = 1;
+  double hour_of_day = 2; // UTC, 0-24
+  // Clear-sky index readings (0..1), oldest first, newest last, 5-minute steps.
+  repeated double clear_sky_index_history = 3;
+}
+
+message ForecastResponse {
+  double clear_sky_index_15m = 1;   // predicted index in 15 minutes
+  double solar_fraction_15m = 2;    // predicted solar output as a fraction of installed kWp
+  double persistence_index_15m = 3; // naive forecast: index unchanged
+  string model_version = 4;
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  bool ready = 1;
+  string model_version = 2;
+}

@@ -1,0 +1,16 @@
+{
+  "min": 0.15,
+  "max": 0.85,
+  "trigger_hz": 49.8,
+  "floor_hz": 49.0,
+  "cases": [
+    {"freq": 50.2, "price": 0.15},
+    {"freq": 50.0, "price": 0.15},
+    {"freq": 49.8, "price": 0.15},
+    {"freq": 49.6, "price": 0.325},
+    {"freq": 49.4, "price": 0.5},
+    {"freq": 49.2, "price": 0.675},
+    {"freq": 49.0, "price": 0.85},
+    {"freq": 48.0, "price": 0.85}
+  ]
+}

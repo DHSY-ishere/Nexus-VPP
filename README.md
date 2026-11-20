@@ -34,8 +34,11 @@ Traditional power grids rely on the physical spinning mass of fossil-fuel turbin
 
 * **High-Concurrency Orchestration:** Utilizes Golang Goroutine worker pools to manage 10,000+ independent nodes concurrently with $O(1)$ command delivery latency.
 * **Dynamic Storage Contribution Ratio (DSCR):** A custom load-balancing algorithm that prevents battery degradation by scaling power dispatch based on real-time solar replenishment rates.
-* **P2P Energy Market (Continuous Double Auction):** A PostgreSQL-backed transactive energy ledger that dynamically surges energy prices during grid strain, incentivizing prosumers to voluntarily stabilize the grid.
-* **Predictive AI/ML Engine:** Python/PyTorch Temporal Fusion Transformers forecast cloud-cover and schedule proactive load shedding before a frequency crash occurs.
+* **Grid-aware P2P market:** A 5-minute uniform-price call auction per feeder zone, followed by a network gate that cuts any trade the cables cannot carry. Price discovery comes from the auction's clearing price.
+* **Verified settlement on a validator blockchain:** Power cannot be routed to one buyer, so delivery is verified for the whole feeder against an independent feeder-head meter, and settlements are signed by validators that each re-run the rules (`backend/delivery`, `backend/chain`).
+* **Dynamic stability tariff:** Frequency-response energy is paid $0.15/kW at the 49.8 Hz trigger, rising linearly to $0.85/kW at 49.0 Hz (`backend/tariff`, `ml/tariff.py`).
+* **Trained solar forecaster:** A gradient-boosted model (scikit-learn) predicts the cloud factor 15 minutes ahead and the arbiter dispatches before a shortfall reaches the grid. Trained on synthetic cloud data; see `ml/models/metrics.json` after `python forecast.py train` for the held-out results.
+* **OpenADR 3.0-style demand response:** A VTN publishes events and a VEN turns the active event into a market signal (not certified; see `backend/openadr`).
 * **3D Digital Twin Command Center:** A React Three Fiber procedural city rendering 180,000+ polygons at 60FPS to visualize cascading blackouts, grid strain, and P2P energy trades in real-time.
 
 ---
@@ -44,11 +47,25 @@ Traditional power grids rely on the physical spinning mass of fossil-fuel turbin
 
 Nexus is built on a 5-layer, event-driven microservices stack:
 
-1. **Edge Nodes:** Lightweight Go agents pushing real-time $V, f, SoC$ telemetry.
-2. **Messaging Backbone:** Apache Kafka topics (`nexus.telemetry`, `nexus.commands`) configured with Exactly-Once Semantics (EOS) to guarantee zero duplicate dispatch commands during network partitions.
-3. **Orchestration Engine:** Golang state controller managing fleet state via a Redis Cluster.
-4. **Prediction Engine:** Python (FastAPI) microservice providing 15-minute ahead generation forecasts via gRPC.
-5. **Data & Visualization:** TimescaleDB for telemetry, PostgreSQL for the P2P ledger, and WebGL/Three.js for real-time observability.
+1. **Edge Nodes:** Agents publish $V, f, SoC$ telemetry over **MQTT** (`nexus/telemetry/<node>`); the Go bridge validates each message and receives dispatch commands back on `nexus/commands/<node>`.
+2. **Messaging Backbone:** Apache Kafka topics (`nexus.telemetry.raw`, `nexus.commands`) between the Go ingestion workers and the Python arbiter. Exactly-once semantics are **not** configured.
+3. **Orchestration Engine:** A Go service keeps live fleet state in **Redis** (atomic Lua aggregates; the code uses cluster-safe hash tags and a UniversalClient, but only a single Redis server has been run). Grid operators signal demand response through an **OpenADR** VTN.
+4. **Prediction Engine:** A Python service serving the trained forecaster over **gRPC** and **FastAPI** (REST).
+5. **Data & Visualization:** **TimescaleDB** hypertable for telemetry history, PostgreSQL for the legacy ledger, and WebGL/Three.js for real-time observability.
+
+---
+
+## Implementation status
+
+Everything above is implemented and tested, except where noted. What is **not** established:
+
+* **Scale and latency targets are design targets, not measurements:** 10,000+ nodes, dispatch under 100 ms, 5,000 events/s ingestion, 60 FPS with 180,000+ polygons. Measurements are planned.
+* **The forecaster is trained on synthetic data.** Its gain over persistence on held-out synthetic days shows the pipeline works; it is not evidence about real weather.
+* **Validators run inside one process.** The consensus rules and signatures are real, but there is no network layer between separate organisations.
+* **Demand response is a subset of OpenADR 3.0 and is not certified.**
+* **Redis was tested as a single server**, not as a running cluster.
+
+Run the optional services with `docker compose up -d` in `infra/` (Kafka, PostgreSQL, Redis, TimescaleDB, Mosquitto) and `python serve.py` in `ml/`; see `docs/ARCHITECTURE.md`.
 
 ---
 

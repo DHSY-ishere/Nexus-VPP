@@ -24,6 +24,14 @@ type P2PTrade struct {
 	Nonce            int
 }
 
+// canonicalTime is the one textual form of a timestamp that the block hash uses. PostgreSQL stores
+// microseconds and returns times in its own time zone, so a hash over the raw time.Now() value
+// (nanoseconds, local zone) can never be reproduced after a database round trip. UTC at
+// microsecond precision survives it.
+func canonicalTime(t time.Time) string {
+	return t.UTC().Truncate(time.Microsecond).Format(time.RFC3339Nano)
+}
+
 func ComputeBlockHash(trade P2PTrade) string {
 	data := fmt.Sprintf("%s%s%f%f%f%s%s%d",
 		trade.TradeID,
@@ -32,7 +40,7 @@ func ComputeBlockHash(trade P2PTrade) string {
 		trade.CreditEarned,
 		trade.GridFrequency,
 		trade.PreviousHash,
-		trade.SettledAt.Format(time.RFC3339Nano),
+		canonicalTime(trade.SettledAt),
 		trade.Nonce,
 	)
 	hash := sha256.Sum256([]byte(data))

@@ -30,7 +30,15 @@ type Agent struct {
 	Limits         Limits
 	WearCostPerKWh float64 // battery degradation cost of one discharged kWh
 	Reflex         *Reflex
+
+	// Demand response, set from an OpenADR event while one is active.
+	DRLevel   int     // 0 normal; 1-3 asks the home to shed demand and offer supply
+	DRCeiling float64 // $/kWh price signal; the home will not bid above it (0 = none)
 }
+
+// DRShiftPerLevel is how many percentage points of state of charge a demand-response level
+// lowers the home's target by. A lower target means the home buys less and offers more.
+const DRShiftPerLevel = 8.0
 
 // Reflex is a pre-sold response curve: the owner agrees in advance to discharge in
 // proportion to how far local frequency or voltage has fallen. The agent acts on
@@ -79,7 +87,7 @@ func TargetSoC(hour float64) float64 {
 // ok is false when the agent has nothing to offer or want.
 func (a *Agent) Bid(hour, hoursLong float64, island bool) (bid market.Bid, ok bool) {
 	band := 6.0
-	target := TargetSoC(hour)
+	target := TargetSoC(hour) - DRShiftPerLevel*float64(a.DRLevel)
 	bid = market.Bid{AgentID: a.ID, Zone: a.Zone, Bus: a.Bus}
 
 	switch {
@@ -99,11 +107,15 @@ func (a *Agent) Bid(hour, hoursLong float64, island bool) (bid market.Bid, ok bo
 			return bid, false
 		}
 		bid.Side = market.Buy
+		maxBuy := a.Limits.MaxBuyPrice
+		if a.DRCeiling > 0 && a.DRCeiling < maxBuy {
+			maxBuy = a.DRCeiling // an announced price signal caps what the home will pay
+		}
 		if island && a.Limits.Critical {
 			bid.Priority = 2
 			bid.Steps = []market.Step{{KWh: need, Price: a.Limits.MaxBuyPrice * 3}}
 		} else {
-			bid.Steps = tranches(need, a.Limits.MaxBuyPrice, 0.88)
+			bid.Steps = tranches(need, maxBuy, 0.88)
 		}
 	default:
 		return bid, false

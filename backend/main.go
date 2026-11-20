@@ -13,8 +13,11 @@ import (
 
 	"github.com/DHSY-ishere/Nexus-VPP/backend/db"
 	"github.com/DHSY-ishere/Nexus-VPP/backend/engine"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/ledgerapi"
 	"github.com/DHSY-ishere/Nexus-VPP/backend/ingestion"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/integrations"
 	"github.com/DHSY-ishere/Nexus-VPP/backend/models"
+	"github.com/DHSY-ishere/Nexus-VPP/backend/tariff"
 	"github.com/gorilla/websocket"
 	"github.com/segmentio/kafka-go"
 )
@@ -107,7 +110,10 @@ func main() {
 
 	// Kafka workers
 	brokers := []string{"127.0.0.1:9092"}
-	ingestion.StartWorkerPool(50, brokers, "nexus.telemetry.raw")
+	sinks := []ingestion.Sink{ingestion.NewKafkaSink(brokers, "nexus.telemetry.raw")}
+	services, extra := integrations.Start(context.Background(), integrations.FromEnv(), eng, http.DefaultServeMux)
+	defer services.Close()
+	ingestion.StartWorkers(50, append(sinks, extra...)...)
 
 	// Command handler
 	go func() {
@@ -126,11 +132,25 @@ func main() {
 							}
 						}
 					}
+				case "MARKET_ISLAND":
+					v, _ := command["value"].(bool)
+					eng.SetIsland(v)
+				case "MARKET_CLOUD":
+					if v, ok := command["value"].(float64); ok {
+						eng.SetCloud(v)
+					}
+				case "MARKET_TAMPER":
+					v, _ := command["value"].(bool)
+					eng.SetTamper(v)
+				case "MARKET_METERLIE":
+					v, _ := command["value"].(bool)
+					eng.SetMeterLie(v)
 				case "BYZANTINE_FAULT":
 					byzantineActive = true
 				case "STRESS_TEST":
 					stressTestActive = true
 				case "CLEAR_FAULT":
+					eng.ClearFaults()
 					frequencyOverride = nil
 					replenishmentOverride = nil
 					byzantineActive = false
@@ -214,6 +234,7 @@ func main() {
 
 					loss := energyKw * 0.06 // 6% I^2R loss
 
+					price := tariff.Price(freq) // dynamic stability tariff, $0.15 to $0.85 per kW
 					tradeMsg := map[string]any{
 						"type":            "TRADE_EVENT",
 						"trade_id":        fmt.Sprintf("TRD-%d", rand.Intn(99999)),
@@ -222,8 +243,8 @@ func main() {
 						"energy_kw":       energyKw,
 						"energy_received": energyKw - loss,
 						"loss_kw":         loss,
-						"price_kwh":       0.82 + rand.Float64()*0.2,
-						"credit":          (energyKw - loss) * 0.82,
+						"price_kwh":       price,
+						"credit":          (energyKw - loss) * price,
 					}
 
 					trade := models.P2PTrade{
@@ -434,6 +455,7 @@ func main() {
 	})
 
 	registerMarketRoutes(eng)
+	ledgerapi.Register(eng)
 
 	fmt.Println("Nexus Orchestrator live on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
